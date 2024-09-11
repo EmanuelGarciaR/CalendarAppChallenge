@@ -4,7 +4,8 @@ __pycache__/
 *$py.class
 
 # Local development configuration
-.env
+
+.venv
 
 # IDE / editor specific files
 .vscode/
