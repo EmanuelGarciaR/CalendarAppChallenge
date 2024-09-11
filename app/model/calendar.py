@@ -17,9 +17,30 @@ class Reminder:
     def __str__(self):
         return (f"Reminder on {self.date_time} of type {self.type}")
 
+
 # TODO: Implement Event class here
+@dataclass
+class Event:
+    title: str
+    description: str
+    date_: time
+    start_at: time
+    end_at: time
 
+    reminders: list[Reminder] = field(default_factory=list)
+    id: str = field(default_factory=generate_unique_id())
 
+    def add_reminder(self, date_time, type: str = Reminder.EMAIL):
+        remind = Reminder(date_time, type)
+        self.reminders.append(remind)
+
+    def delete_reminder(self, reminder_index: int):
+        if self.reminders[reminder_index]:
+            self.reminders.pop(reminder_index)
+        reminder_not_found_error()
+
+    def __str__(self):
+        return f"ID: {self.id}\nEvent title: {self.title}\nDescription: {self.description}\nTime: {self.start_at} - {self.end_at}"
 # TODO: Implement Day class here
 
 
