@@ -29,28 +29,24 @@ class Event:
     start_at: time
     end_at: time
 
-    reminders: list[Reminder] = field(default_factory=list)
+    reminders: list[Reminder] = field(init=False, default_factory=list)
     id: str = field(default_factory=generate_unique_id)
 
-    def add_reminder(self, date_time, type: str = Reminder.EMAIL):
-        remind = Reminder(date_time, type)
+    def add_reminder(self, date_time: datetime, type_: str):
+        remind = Reminder(date_time, type_)
         self.reminders.append(remind)
 
-    def delete_reminder(self, reminder_index: int) -> None:
-        if 0 <= reminder_index < len(self.reminders):
-            del self.reminders[reminder_index]
-        else:
+    def delete_reminder(self, reminder_index: int):
+        if reminder_index < 0 or reminder_index >= len(self.reminders):
             reminder_not_found_error()
+        else:
+            del self.reminders[reminder_index]
 
     def __str__(self):
         return f"ID: {self.id}\nEvent title: {self.title}\nDescription: {self.description}\nTime: {self.start_at} - {self.end_at}"
 
 
 # TODO: Implement Day class here
-from datetime import time, datetime, timedelta
-from app.services.util import slot_not_available_error, event_not_found_error
-
-
 class Day:
     def __init__(self, date_: date):
         self.date_ = date_
@@ -58,81 +54,77 @@ class Day:
         self._init_slots()
 
     def _init_slots(self):
-        start_time = time(00, 00)
-        end_time = time(23, 45)
-        current_time = start_time
-
-        while current_time <= end_time:
-            self.slots[current_time] = None
-            current_time = (datetime.combine(self.date_, current_time) + timedelta(minutes=15)).time()
+        for hour in range(24):
+            for minutes in range(0, 60, 15):
+                self.slots[time(hour, minutes)] = None
 
     def add_event(self, event_id: str, start_at: time, end_at: time):
-        current_time = start_at
-
-        while current_time < end_at:
-            if self.slots.get(current_time) is not None:
-                slot_not_available_error()
-                return
-
-            current_time = (datetime.combine(self.date_, current_time) + timedelta(minutes=15)).time()
-
-        current_time = start_at
-        while current_time < end_at:
-            self.slots[current_time] = event_id
-            current_time = (datetime.combine(self.date_, current_time) + timedelta(minutes=15)).time()
+        for slot in self.slots:
+            if start_at <= slot < end_at:
+                if self.slots[slot] is None:
+                    self.slots[slot] = event_id
+                else:
+                    slot_not_available_error()
 
     def delete_event(self, event_id: str):
         deleted = False
-        for slot in list(self.slots.keys()):
-            if self.slots[slot] == event_id:
+        for slot, saved_id in self.slots.items():
+            if saved_id == event_id:
                 self.slots[slot] = None
                 deleted = True
-
         if not deleted:
             event_not_found_error()
 
     def update_event(self, event_id: str, start_at: time, end_at: time):
-        # Remove existing event
-        for slot in list(self.slots.keys()):
+        for slot in self.slots:
             if self.slots[slot] == event_id:
                 self.slots[slot] = None
 
-        # Check for availability and update
-        current_time = start_at
-        while current_time < end_at:
-            if self.slots.get(current_time) is not None and self.slots[current_time] != event_id:
-                slot_not_available_error()
-                return
-            current_time = (datetime.combine(self.date_, current_time) + timedelta(minutes=15)).time()
-
-        current_time = start_at
-        while current_time < end_at:
-            self.slots[current_time] = event_id
-            current_time = (datetime.combine(self.date_, current_time) + timedelta(minutes=15)).time()
+        for slot in self.slots:
+            if start_at <= slot < end_at:
+                if self.slots[slot]:
+                    slot_not_available_error()
+                else:
+                    self.slots[slot] = event_id
 
 
 # TODO: Implement Calendar class here
 class Calendar:
     def __init__(self):
-        self.days: dict[str, Day] = {}
+        self.days: dict[date, Day] = {}
         self.events: dict[str, Event] = {}
 
+    def add_event(self, title: str, description: str, date_: date, start_at: time, end_at: time):
+        if date_ < datetime.now().date():
+            date_lower_than_today_error()
+        else:
+            if date_ not in self.days:
+                day = Day(date_)
+                self.days[date_] = day
+            event = Event(title, description,  date_, start_at, end_at)
+            self.days[date_].add_event(event.id, start_at, end_at)
+            self.events[event.id] = event
 
+            return event.id
 
-    def add_reminder(self, event_id: str, date_time: datetime, type_: str):
+    def add_reminder(self,  event_id: str, date_time: datetime, type_: str):
         if event_id not in self.events:
             event_not_found_error()
-            return
-
-        event = self.events[event_id]
-        event.add_reminder(date_time, type_)
+        else:
+            event = self.events[event_id]
+            event.add_reminder(date_time, type_)
 
     def find_available_slots(self, date_: date) -> list[time]:
-        if date_.isoformat() not in self.days:
-            return []
+        available_slots = []
+        day = self.days.get(date_)
+        if day:
+            for slot, event in day.slots.items():
+                if event is None:
+                    available_slots.append(slot)
+        else:
+            day = Day(date_)
+            available_slots = list(day.slots.keys())
 
-        day = self.days[date_.isoformat()]
-        available_slots = [slot for slot, event_id in day.slots.items() if event_id is None]
         return available_slots
 
     def update_event(self, event_id: str, title: str, description: str, date_: date, start_at: time, end_at: time):
